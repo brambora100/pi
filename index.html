@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Pí Dashboard - Nekonečný generátor</title>
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --neon-purple: #bc13fe;
+            --bg-dark: #080a0f;
+            --card-bg: rgba(20, 25, 35, 0.8);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            background-image: radial-gradient(circle at center, #1a1f2c 0%, #080a0f 100%);
+            color: white;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header { padding: 40px 0; text-align: center; }
+        h1 {
+            font-weight: 800; letter-spacing: 5px; text-transform: uppercase;
+            background: linear-gradient(to right, var(--neon-blue), var(--neon-purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            margin: 0;
+        }
+
+        .main-grid {
+            display: grid; grid-template-columns: 300px 1fr 300px;
+            gap: 20px; width: 95%; max-width: 1400px;
+        }
+
+        .card {
+            background: var(--card-bg); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px; padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .pi-stream-container { grid-column: 2; display: flex; flex-direction: column; gap: 20px; }
+
+        #piDisplay {
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 2.2rem; line-height: 1.4; word-break: break-all;
+            height: 440px; overflow-y: auto; color: var(--neon-blue);
+            padding: 20px; background: rgba(0, 0, 0, 0.3); border-radius: 15px;
+            scrollbar-width: thin; scrollbar-color: var(--neon-purple) transparent;
+        }
+
+        .info-title {
+            color: var(--neon-purple); font-weight: bold;
+            text-transform: uppercase; font-size: 0.8rem; margin-bottom: 10px; display: block;
+        }
+
+        .stat-val { font-size: 1.5rem; font-weight: bold; color: white; margin-bottom: 20px; }
+
+        .visualizer { display: flex; justify-content: center; align-items: center; height: 180px; }
+        .circle-anim {
+            width: 120px; height: 120px; border: 4px solid var(--neon-blue);
+            border-radius: 50%; animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 20px var(--neon-blue); }
+            50% { transform: scale(1.05); box-shadow: 0 0 40px var(--neon-purple); }
+            100% { transform: scale(1); box-shadow: 0 0 20px var(--neon-blue); }
+        }
+
+        .reset-btn {
+            background: rgba(255, 0, 0, 0.2); border: 1px solid red; color: white;
+            padding: 8px 15px; border-radius: 10px; cursor: pointer; font-size: 0.7rem;
+            transition: 0.3s;
+        }
+        .reset-btn:hover { background: red; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Digitální Konstanta &pi;</h1>
+        <p style="color: #666;">Ultra-přesný synchronizovaný výpočet</p>
+    </div>
+
+    <div class="main-grid">
+        <div class="card">
+            <span class="info-title">Status systému</span>
+            <div class="stat-val" id="status">BĚŽÍ</div>
+            
+            <span class="info-title">Nalezeno číslic</span>
+            <div class="stat-val" id="digitCount">0</div>
+
+            <div class="visualizer">
+                <div class="circle-anim"></div>
+            </div>
+            
+            <button class="reset-btn" onclick="resetPi()">RESET VÝPOČTU</button>
+        </div>
+
+        <div class="pi-stream-container">
+            <div class="card" id="piDisplay">3.</div>
+        </div>
+
+        <div class="card">
+            <span class="info-title">Matematika</span>
+            <div id="factDisplay" class="fact-box" style="font-size: 0.9rem; color:#ccc;">
+                Tento systém ukládá stav výpočtu do paměti prohlížeče. Po obnovení stránky pokračuje v rozvoji desetinných míst.
+            </div>
+            <hr style="border: 0; border-top: 1px dashed #333; margin: 20px 0;">
+            <span class="info-title">Stav registru</span>
+            <div style="font-size: 10px; font-family: monospace; color: #666;" id="stateLog">Ready...</div>
+        </div>
+    </div>
+
+    <script>
+        const piDisplay = document.getElementById('piDisplay');
+        const digitCount = document.getElementById('digitCount');
+        const stateLog = document.getElementById('stateLog');
+
+        // Spigot proměnné (BigInt pro absolutní přesnost)
+        let q, r, t, k, n, l, counter;
+
+        // Funkce pro načtení nebo inicializaci stavu
+        function initState() {
+            const saved = localStorage.getItem('pi_engine_state');
+            const history = localStorage.getItem('pi_engine_history');
+            
+            if (saved) {
+                const s = JSON.parse(saved);
+                q = BigInt(s.q); r = BigInt(s.r); t = BigInt(s.t);
+                k = BigInt(s.k); n = BigInt(s.n); l = BigInt(s.l);
+                counter = s.counter;
+                if (history) piDisplay.innerHTML = "3." + history;
+            } else {
+                q = 1n; r = 0n; t = 1n; k = 1n; n = 3n; l = 3n;
+                counter = 0;
+                piDisplay.innerHTML = "3.";
+            }
+            digitCount.innerText = counter;
+        }
+
+        function saveState() {
+            const state = { 
+                q: q.toString(), r: r.toString(), t: t.toString(), 
+                k: k.toString(), n: n.toString(), l: l.toString(), 
+                counter: counter 
+            };
+            localStorage.setItem('pi_engine_state', JSON.stringify(state));
+            
+            // Uložíme i textový řetězec historie (posledních 5000 číslic pro rychlost načítání)
+            let currentText = piDisplay.innerText.replace("3.", "");
+            if (currentText.length > 5000) currentText = currentText.slice(-5000);
+            localStorage.setItem('pi_engine_history', currentText);
+        }
+
+        function update() {
+            // Algoritmus běží tak dlouho, dokud nenajde další číslici
+            while (true) {
+                if (4n * q + r - t < n * t) {
+                    const digit = n.toString();
+                    
+                    if (counter > 0) {
+                        const span = document.createElement('span');
+                        span.innerText = digit;
+                        piDisplay.appendChild(span);
+                        
+                        // Automatický scroll
+                        piDisplay.scrollTop = piDisplay.scrollHeight;
+                    }
+
+                    let nr = 10n * (r - n * t);
+                    n = ((10n * (3n * q + r)) / t) - 10n * n;
+                    q *= 10n;
+                    r = nr;
+                    counter++;
+                    
+                    digitCount.innerText = counter;
+                    
+                    // Ukládání každých 50 číslic kvůli výkonu
+                    if (counter % 50 === 0) {
+                        saveState();
+                        stateLog.innerText = `Q:${q.toString().substring(0,10)}... R:${r.toString().substring(0,10)}...`;
+                    }
+                    
+                    break; // Našli jsme číslici, vykreslíme a počkáme na další tik
+                } else {
+                    let nr = (2n * q + r) * l;
+                    let nn = (q * (7n * k + 2n) + r * l) / (t * l);
+                    q *= k;
+                    t *= l;
+                    l += 2n;
+                    k += 1n;
+                    n = nn;
+                    r = nr;
+                }
+            }
+            
+            // Interval 10ms pro vysokou rychlost
+            setTimeout(update, 10);
+        }
+
+        function resetPi() {
+            if(confirm("Smazat veškerý postup?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        // Start
+        initState();
+        update();
+    </script>
+</body>
+</html>
